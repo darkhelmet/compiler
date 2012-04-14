@@ -1,27 +1,30 @@
+fs = require('fs')
 less = require('less')
 coffee = require('coffee-script')
 
-compiler = require('zappa') (process.env.PORT || 3000),  ->
+compiler = require('zappa') process.env.PORT,  ->
     @use(@express.bodyParser())
 
     @get '/', ->
         @render('index')
 
-    @post '/coffee', ->
-        try
-            js = coffee.compile(@request.body.coffee)
-            @response.contentType('text/javascript')
-            @send(js)
-        catch error
-            @send(400)
-
-    @post '/less', ->
-        less.render @request.body.less, (err, css) =>
-            if err
+    @post '/', ->
+        if @request.files.coffee?
+            try
+                js = coffee.compile(fs.readFileSync(@request.files.coffee.path, 'utf8'))
+                @response.contentType('text/javascript')
+                @send(js)
+            catch error
                 @send(400)
-            else
-                @response.contentType('text/css')
-                @send(css)
+        else if @request.files.less?
+            less.render fs.readFileSync(@request.files.less.path, 'utf8'), (err, css) =>
+                if err
+                    @send(400)
+                else
+                    @response.contentType('text/css')
+                    @send(css)
+        else
+            @send(400)
 
     @view layout: ->
         doctype 5
@@ -32,14 +35,5 @@ compiler = require('zappa') (process.env.PORT || 3000),  ->
             body @body
 
     @view index: ->
-        div ->
-            form action: '/less', method: 'POST', ->
-                label 'Less'
-                textarea name: 'less'
-                input type: 'submit'
-
-        div ->
-            form action: '/coffee', method: 'POST', ->
-                label 'Coffee'
-                textarea name: 'coffee'
-                input type: 'submit'
+        h1 ->
+            a href: 'https://github.com/darkhelmet/compiler', "Everyday I'm compilin'..."
