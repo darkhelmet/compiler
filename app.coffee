@@ -1,7 +1,7 @@
 less = require('less')
 coffee = require('coffee-script')
 
-compiler = require('zappa') ->
+compiler = require('zappa') (process.env.PORT || 3000),  ->
     @use(@express.bodyParser())
 
     @get '/', ->
@@ -43,5 +43,3 @@ compiler = require('zappa') ->
                 label 'Coffee'
                 textarea name: 'coffee'
                 input type: 'submit'
-
-compiler.app.listen(process.env.PORT || 3000)
