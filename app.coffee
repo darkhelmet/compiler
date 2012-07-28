@@ -24,11 +24,13 @@ compiler = require('zappa') process.env.PORT,  ->
                 @response.contentType('text/javascript')
                 @send(js)
             catch error
+                console.log(error)
                 @send(400)
         else if @request.files.less?
             style = fs.readFileSync(@request.files.less.path, 'utf8')
             less.render style, { compress: @request.body.compress }, (err, css) =>
                 if err
+                    console.log(err)
                     @send(400)
                 else
                     @response.contentType('text/css')
