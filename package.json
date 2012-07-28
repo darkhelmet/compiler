@@ -2,6 +2,7 @@
     "name": "compiler",
     "version": "0.0.1",
     "dependencies": {
+        "express": "2.5.9",
         "zappa": "0.3.3",
         "less": "1.3.0",
         "coffee-script": "1.3.1",
