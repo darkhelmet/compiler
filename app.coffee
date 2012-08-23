@@ -3,6 +3,7 @@ less = require('less')
 coffee = require('coffee-script')
 jsp = require('uglify-js').parser
 pro = require('uglify-js').uglify
+request = require('request')
 
 compress = (js) ->
     ast = jsp.parse(js)
@@ -10,11 +11,52 @@ compress = (js) ->
     ast = pro.ast_squeeze(ast)
     pro.gen_code(ast)
 
+getExtension = (filename) ->
+    i = filename.lastIndexOf('.')
+    if i < 0 then return '' else return filename.substr(i+1)
+
+getFilename = (pathname) ->
+    i = pathname.lastIndexOf('/')
+    if i < 0 then return '' else return pathname.substr(i+1)
+
 compiler = require('zappa') process.env.PORT,  ->
     @use(@express.bodyParser())
 
     @get '/', ->
-        @render('index')
+        if (path = @request.query.u)?
+            request path, (error, response, body) =>
+                if error
+                    console.log(error)
+                    @send(400)
+                else
+                    filename = getFilename(response.request.href)
+                    extension = getExtension(filename)
+                    if extension is 'coffee'
+                        try
+                            js = coffee.compile(body)
+                            js = compress(js) if @request.query.uglify
+                            filename = filename.replace('coffee', 'js')
+                            @response.attachment(filename)
+                            @response.contentType('text/javascript')
+                            @response.send(js)
+                        catch error
+                            console.log(error)
+                            @send(400)
+                    else if extension is 'less'
+                        style = body
+                        less.render style, { compress: @request.query.compress }, (error, css) =>
+                            if error
+                                console.log(error)
+                                @send(400)
+                            else
+                                filename = filename.replace('less', 'css')
+                                @response.attachment(filename)
+                                @response.contentType('text/css')
+                                @response.send(css)
+                    else
+                        @send(400)
+        else
+            @render('index')
 
     @post '/', ->
         if @request.files.coffee?
@@ -28,9 +70,9 @@ compiler = require('zappa') process.env.PORT,  ->
                 @send(400)
         else if @request.files.less?
             style = fs.readFileSync(@request.files.less.path, 'utf8')
-            less.render style, { compress: @request.body.compress }, (err, css) =>
-                if err
-                    console.log(err)
+            less.render style, { compress: @request.body.compress }, (error, css) =>
+                if error
+                    console.log(error)
                     @send(400)
                 else
                     @response.contentType('text/css')
