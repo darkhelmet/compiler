@@ -11,50 +11,39 @@ compress = (js) ->
     ast = pro.ast_squeeze(ast)
     pro.gen_code(ast)
 
-getExtension = (filename) ->
-    i = filename.lastIndexOf('.')
-    if i < 0 then return '' else return filename.substr(i+1)
-
-getFilename = (pathname) ->
-    i = pathname.lastIndexOf('/')
-    if i < 0 then return '' else return pathname.substr(i+1)
-
 compiler = require('zappa') process.env.PORT,  ->
     @use(@express.bodyParser())
 
     @get '/', ->
-        if (path = @request.query.u)?
-            request path, (error, response, body) =>
+        if @request.query.coffee?
+            request @request.query.coffee, (error, response, body) =>
                 if error
                     console.log(error)
                     @send(400)
                 else
-                    filename = getFilename(response.request.href)
-                    extension = getExtension(filename)
-                    if extension is 'coffee'
-                        try
-                            js = coffee.compile(body)
-                            js = compress(js) if @request.query.uglify
-                            filename = filename.replace('coffee', 'js')
-                            @response.attachment(filename)
-                            @response.contentType('text/javascript')
-                            @response.send(js)
-                        catch error
+                    try
+                        js = coffee.compile(body)
+                        js = compress(js) if @request.query.uglify
+                        filename = (@request.query.filename ? 'compiled') + '.js'
+                        @response.attachment(filename)
+                        @response.send(js)
+                    catch error
+                        console.log(error)
+                        @send(400)
+        else if @request.query.less?
+            request @request.query.less, (error, response, body) =>
+                if error
+                    console.log(error)
+                    @send(400)
+                else
+                    less.render body, { compress: @request.query.compress }, (error, css) =>
+                        if error
                             console.log(error)
                             @send(400)
-                    else if extension is 'less'
-                        style = body
-                        less.render style, { compress: @request.query.compress }, (error, css) =>
-                            if error
-                                console.log(error)
-                                @send(400)
-                            else
-                                filename = filename.replace('less', 'css')
-                                @response.attachment(filename)
-                                @response.contentType('text/css')
-                                @response.send(css)
-                    else
-                        @send(400)
+                        else
+                            filename = (@request.query.filename ? 'compiled') + '.css'
+                            @response.attachment(filename)
+                            @response.send(css)
         else
             @render('index')
 
