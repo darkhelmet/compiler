@@ -3,6 +3,7 @@ less = require('less')
 coffee = require('coffee-script')
 jsp = require('uglify-js').parser
 pro = require('uglify-js').uglify
+request = require('request')
 
 compress = (js) ->
     ast = jsp.parse(js)
@@ -14,7 +15,37 @@ compiler = require('zappa') process.env.PORT,  ->
     @use(@express.bodyParser())
 
     @get '/', ->
-        @render('index')
+        if @request.query.coffee?
+            request @request.query.coffee, (error, response, body) =>
+                if error
+                    console.log(error)
+                    @send(400)
+                else
+                    try
+                        js = coffee.compile(body)
+                        js = compress(js) if @request.query.uglify
+                        filename = (@request.query.filename ? 'compiled') + '.js'
+                        @response.attachment(filename)
+                        @response.send(js)
+                    catch error
+                        console.log(error)
+                        @send(400)
+        else if @request.query.less?
+            request @request.query.less, (error, response, body) =>
+                if error
+                    console.log(error)
+                    @send(400)
+                else
+                    less.render body, { compress: @request.query.compress }, (error, css) =>
+                        if error
+                            console.log(error)
+                            @send(400)
+                        else
+                            filename = (@request.query.filename ? 'compiled') + '.css'
+                            @response.attachment(filename)
+                            @response.send(css)
+        else
+            @render('index')
 
     @post '/', ->
         if @request.files.coffee?
@@ -28,9 +59,9 @@ compiler = require('zappa') process.env.PORT,  ->
                 @send(400)
         else if @request.files.less?
             style = fs.readFileSync(@request.files.less.path, 'utf8')
-            less.render style, { compress: @request.body.compress }, (err, css) =>
-                if err
-                    console.log(err)
+            less.render style, { compress: @request.body.compress }, (error, css) =>
+                if error
+                    console.log(error)
                     @send(400)
                 else
                     @response.contentType('text/css')
