@@ -4,6 +4,9 @@ coffee = require('coffee-script')
 jsp = require('uglify-js').parser
 pro = require('uglify-js').uglify
 request = require('request')
+express = require('express')
+bodyParser = require('body-parser')
+fileUpload = require('express-fileupload')
 
 compress = (js) ->
     ast = jsp.parse(js)
@@ -11,72 +14,67 @@ compress = (js) ->
     ast = pro.ast_squeeze(ast)
     pro.gen_code(ast)
 
-compiler = require('zappa') process.env.PORT,  ->
-    @use(@express.bodyParser())
 
-    @get '/', ->
-        if @request.query.coffee?
-            request @request.query.coffee, (error, response, body) =>
-                if error
-                    console.log(error)
-                    @send(400)
-                else
-                    try
-                        js = coffee.compile(body)
-                        js = compress(js) if @request.query.uglify
-                        filename = (@request.query.filename ? 'compiled') + '.js'
-                        @response.attachment(filename)
-                        @response.send(js)
-                    catch error
-                        console.log(error)
-                        @send(400)
-        else if @request.query.less?
-            request @request.query.less, (error, response, body) =>
-                if error
-                    console.log(error)
-                    @send(400)
-                else
-                    less.render body, { compress: @request.query.compress }, (error, css) =>
-                        if error
-                            console.log(error)
-                            @send(400)
-                        else
-                            filename = (@request.query.filename ? 'compiled') + '.css'
-                            @response.attachment(filename)
-                            @response.send(css)
-        else
-            @render('index')
+app = express()
+app.use(fileUpload())
+app.use(bodyParser.urlencoded(extended: true))
 
-    @post '/', ->
-        if @request.files.coffee?
-            try
-                js = coffee.compile(fs.readFileSync(@request.files.coffee.path, 'utf8'))
-                js = compress(js) if @request.body.uglify
-                @response.contentType('text/javascript')
-                @send(js)
-            catch error
+app.get '/', (req, res) ->
+    if req.query.coffee?
+        request req.query.coffee, (error, response, body) =>
+            if error
                 console.log(error)
-                @send(400)
-        else if @request.files.less?
-            style = fs.readFileSync(@request.files.less.path, 'utf8')
-            less.render style, { compress: @request.body.compress }, (error, css) =>
-                if error
+                res.send(400)
+            else
+                try
+                    js = coffee.compile(body)
+                    js = compress(js) if req.query.uglify
+                    filename = (req.query.filename ? 'compiled') + '.js'
+                    res.attachment(filename)
+                    res.send(js)
+                catch error
                     console.log(error)
-                    @send(400)
-                else
-                    @response.contentType('text/css')
-                    @send(css)
-        else
-            @send(400)
+                    res.send(400)
+    else if req.query.less?
+        request req.query.less, (error, response, body) =>
+            if error
+                console.log(error)
+                res.send(400)
+            else
+                less.render body, { compress: req.query.compress }, (error, compiled) =>
+                    if error
+                        console.log(error)
+                        res.send(400)
+                    else
+                        filename = (req.query.filename ? 'compiled') + '.css'
+                        res.attachment(filename)
+                        res.send(compiled.css)
+    else
+        res.send('https://github.com/darkhelmet/compiler')
 
-    @view layout: ->
-        doctype 5
-        html ->
-            head ->
-                meta charset: 'utf-8'
-                title 'Just compiling things...'
-            body @body
+app.post '/', (req, res)->
+    if req.files.coffee?
+        try
+            js = coffee.compile(req.files.coffee.data.toString())
+            js = compress(js) if req.body.uglify
+            res.contentType('text/javascript')
+            res.send(js)
+        catch error
+            console.log(error)
+            res.send(400)
+    else if req.files.less?
+        style = req.files.less.data.toString()
+        less.render style, { compress: req.body.compress }, (error, compiled) =>
+            if error
+                console.log(error)
+                res.send(400)
+            else
+                res.contentType('text/css')
+                res.send(compiled.css)
+    else
+        res.send(400)
 
-    @view index: ->
-        h1 ->
-            a href: 'https://github.com/darkhelmet/compiler', "Everyday I'm compilin'..."
+port = process.env.PORT or 3000
+
+app.listen port, ->
+  console.log("listening on #{port}")
